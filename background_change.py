@@ -1,6 +1,6 @@
 import sys
 import rclpy
-from rclpy.parameter import Parameter
+from rcl_interfaces.msg import Parameter
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import ParameterType
 from rcl_interfaces.msg import ParameterValue
@@ -12,10 +12,10 @@ class AMTurtle(Node):
         super().__init__('am_turtle')
 
         # Creates a client that can be used to change the background color
-        self.cli = self.create_client(SetParameters,'turtlesim/set_parameters')
+        self.cli = self.create_client(SetParameters,'/turtlesim/set_parameters')
 
         while not self.cli.wait_for_service(timeout_sec=1.0):
-            self.get_loger().info('service not available, waiting again...')
+            self.get_logger().info('service not available, waiting again...')
         
         self.req = SetParameters.Request()
 
@@ -27,9 +27,9 @@ class AMTurtle(Node):
 
         # Setting the parameters in the request
         self.req.parameters = [
-            Parameter(name='background_r', value=param_r).to_parameter_msg(),
-            Parameter(name='background_g', value=param_g).to_parameter_msg(),
-            Parameter(name='background_b', value=param_b).to_parameter_msg()
+            Parameter(name='background_r', value=param_r),
+            Parameter(name='background_g', value=param_g),
+            Parameter(name='background_b', value=param_b)
         ]
 
         self.future = self.cli.call_async(self.req)
