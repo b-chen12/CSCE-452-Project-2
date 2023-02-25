@@ -32,6 +32,7 @@ class AMTurtle(Node):
             Parameter(name='background_b', value=param_b)
         ]
 
+        # Completing an async call to change the background color
         self.future = self.cli.call_async(self.req)
 
 
@@ -40,7 +41,19 @@ def main(args=None):
 
     am_turtle = AMTurtle()
     am_turtle.send_request()
+
+    rclpy.spin(am_turtle)
     
+    if am_turtle.future.done():
+        try:
+            response = am_turtle.future.result()
+        except Exception as e:
+            am_turtle.get_logger().info(
+                'Service call failed %r' % (e,)
+            )
+    
+    am_turtle.destroy_node()
+    rclpy.shutdown()
 
 # Used to run the script
 if __name__ == '__main__':
