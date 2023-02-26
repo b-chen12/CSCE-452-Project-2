@@ -10,7 +10,7 @@ from geometry_msgs.msg import Twist
 from math import *
 
 from rclpy.node import Node
-
+reached = False
 class AMTurtle(Node):
     def __init__(self):
         super().__init__('am_turtle')
@@ -33,13 +33,16 @@ class AMTurtle(Node):
         self.background_req = SetParameters.Request()
 
         self.move_m = self.create_publisher(Twist, '/turtle1/cmd_vel', 10)
-       # timer_period = 1  # will move every 1 seconds
-       # self.timer = self.create_timer(timer_period, self.move_turtle)
-        self.rate = self.create_rate(10.0)
+        timer_period = .1  # will move every 1 seconds
+        self.timer = self.create_timer(timer_period, self.move_turtle)
+
         self.get_pos = self.create_subscription(Pose, '/turtle1/pose', self.pos_callback, 10)   
         #self.get_pos
        # self.get_logger().info('test')
         self.pos = Pose()
+        self.rate = self.create_rate(1.0)
+        
+
       #  self.move_turtle
 
     def send_pen_request(self):
@@ -70,9 +73,10 @@ class AMTurtle(Node):
 
     #def move_request(self):
     def pos_callback(self, msg):
+        self.pos = msg
         self.pos.x = msg.x
         self.pos.y = msg.y
-        self.pos = msg
+        
         self.get_logger().info('"%s"' % self.pos.x )    
         #self.get_logger().info('Message from /turtle1/pose: "%s"' % msg ) 
 
@@ -85,35 +89,40 @@ class AMTurtle(Node):
         return angle
 
     def angular (self, pos):
-        return 4*(self.angle_between_points(pos) - self.pos.theta)
+        return 6*(self.angle_between_points(pos) - self.pos.theta)
     
     def linear (self, pos):
-        return 2 * self.distance_formula(pos)
+        return .5 * self.distance_formula(pos)
     
     def move_turtle(self):
+        global reached
         pos = Pose()
-        pos.x = 1.0        
+        pos.x = 3.0        
         pos.y = 1.0
-        t = .8
+        t = .5
         msg = Twist()
 
-        while self.distance_formula(pos) >= t:
-            msg.angular.x = 0.0
-            msg.angular.y = 0.0
-            msg.angular.z = self.angular(pos)
+       # while self.distance_formula(pos) >= t:
+        self.get_logger().info('"%s"sss' % self.distance_formula(pos) )  
+        msg.angular.x = 0.0
+        msg.angular.y = 0.0
+        msg.angular.z = self.angular(pos)
 
-            msg.linear.x = self.linear(pos)
-            msg.linear.y = 0.0
-            msg.linear.z = 0.0
+        msg.linear.x = self.linear(pos)
+        msg.linear.y = 0.0
+        msg.linear.z = 0.0
 
-            self.move_m.publish(msg)
-            self.rate.sleep()
-            
-        
-        msg.angular.z = 0
-        msg.linear.x = 0
         self.move_m.publish(msg)
-        rclpy.spin()
+        #self.rate.sleep()
+            
+        self.get_logger().info('"%s"sdf' % self.distance_formula(pos) )  
+        if(self.distance_formula(pos) <= 0.5):     
+            msg.angular.z = 0.0
+            msg.linear.x = 0.0
+            self.move_m.publish(msg)
+            #sys.exit()
+            reached =True
+        # rclpy.spin(self)
 
 
 
@@ -124,19 +133,12 @@ def main(args=None):
     am_turtle.send_pen_request()
     am_turtle.send_background_request()
     
-
-    #rclpy.spin(am_turtle)
-    am_turtle.move_turtle()
+    while reached == False:
+        rclpy.spin_once(am_turtle)
+    #am_turtle.move_turtle()
 
     # Might need to use while rclpy isok here
-    
-    if am_turtle.future.done():
-        try:
-            response = am_turtle.future.result()
-        except Exception as e:
-            am_turtle.get_logger().info(
-                'Service call failed %r' % (e,)
-            )
+
     
     am_turtle.destroy_node()
     rclpy.shutdown()
