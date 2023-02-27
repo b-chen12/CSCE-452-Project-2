@@ -11,6 +11,7 @@ import math
 import time
 
 from rclpy.node import Node
+
 reached = False
 
 class AMTurtle(Node):
@@ -100,11 +101,9 @@ class AMTurtle(Node):
     # Moves turtle to goal point
     def go_to_point(self):
         new_point = Pose()
-        new_point.x = 4.0
-        new_point.y = 1.0
-        new_point.theta = math.pi/2
-
-        print(new_point.x, new_point.y, new_point.theta)
+        new_point.x = x_val
+        new_point.y = y_val
+        new_point.theta = angle_val
 
         vel_msg = Twist()
         distance = self.distance(new_point)
@@ -123,8 +122,8 @@ class AMTurtle(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    global current_x
-    global current_y
+    global reached
+    reached = False
 
     am_turtle = AMTurtle()
 
@@ -135,13 +134,20 @@ def main(args=None):
     y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
     angles = [math.pi/2, 0.0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0.0, 3*math.pi/2, math.pi]
 
-    # for i in range(len(x_cords)):
-    #     while reached == False:
-    #         rclpy.spin_once(am_turtle)
-    #     am_turtle.go_to_point(x_cords[i], y_cords[i], angles[i])
-    #     am_turtle.send_pen_request()
-    
-    am_turtle.go_to_point()
+    # Used to change the coordinates properly
+    global x_val, y_val, angle_val
+
+    index = 0
+
+    x_val = x_cords[index]
+    y_val = y_cords[index]
+    angle_val = angles[index]
+
+    # Forces the coords to change when the turtle reaches its goal
+    if reached and (index + 1) < len(x_cords):
+        index += 1
+        print("Change!")
+        reached = False
 
     rclpy.spin(am_turtle)
 
