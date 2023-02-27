@@ -13,6 +13,7 @@ from rclpy.node import Node
 reached = False
 current_x = 0.0
 current_y = 0.0
+current_angle = 0.0
 class AMTurtle(Node):
     def __init__(self):
         super().__init__('am_turtle')
@@ -35,17 +36,12 @@ class AMTurtle(Node):
         self.background_req = SetParameters.Request()
 
         self.move_m = self.create_publisher(Twist, '/turtle1/cmd_vel', 10)
-        timer_period = .1  # will move every 1 seconds
+        timer_period = .1  # will move every .1 seconds
         self.timer = self.create_timer(timer_period, self.move_turtle)
 
         self.get_pos = self.create_subscription(Pose, '/turtle1/pose', self.pos_callback, 10)   
-        #self.get_pos
-       # self.get_logger().info('test')
         self.pos = Pose()
-        self.rate = self.create_rate(1.0)
-        
 
-      #  self.move_turtle
 
     def send_pen_request(self):
         # Setting up the parameters for the pen color to be white
@@ -86,7 +82,6 @@ class AMTurtle(Node):
         self.pos.y = msg.y
         
         self.get_logger().info('"%s"' % self.pos.x )    
-        #self.get_logger().info('Message from /turtle1/pose: "%s"' % msg ) 
 
     def distance_formula(self, pos):
         length = math.sqrt((pos.x - self.pos.x)**2 + (pos.y - self.pos.y)**2)
@@ -97,86 +92,39 @@ class AMTurtle(Node):
         return angle
 
     def angular (self, pos):
-        return 6*(self.angle_between_points(pos) - self.pos.theta)
+        return 5*(self.angle_between_points(pos) - self.pos.theta)
     
     def linear (self, pos):
-        return .5 * self.distance_formula(pos)
+        return 4 * self.distance_formula(pos)
     
     def move_turtle(self):
         global reached
         global current_x
         global current_y
+        global current_angle
         pos = Pose()
         pos.x = current_x        
         pos.y = current_y
-        t = .05
+        pos.theta = current_angle
+        t = .01
+        t_angle = .001
         msg = Twist()
 
-       # while self.distance_formula(pos) >= t:
-        self.get_logger().info('"%s"sss' % self.distance_formula(pos) )  
-        msg.angular.x = 0.0
-        msg.angular.y = 0.0
-        msg.angular.z = self.angular(pos)
-
-        msg.linear.x = self.linear(pos)
-        msg.linear.y = 0.0
-        msg.linear.z = 0.0
-
-        self.move_m.publish(msg)
-        #self.rate.sleep()
-            
-        self.get_logger().info('"%s"sdf' % self.distance_formula(pos) )  
-        if(self.distance_formula(pos) <= t):     
-            msg.angular.z = 0.0
+        if abs(self.angle_between_points(pos) - self.pos.theta) > t_angle:
             msg.linear.x = 0.0
-            self.move_m.publish(msg)
-            #sys.exit()
-            reached =True
-        # rclpy.spin(self)
+            msg.angular.z = self.angular(pos)
+        else:
+            msg.angular.z = 0.0
+            if self.distance_formula(pos)>=t:
+                msg.linear.x = self.linear(pos)
+            else:
+                msg.linear.x = 0.0
+                reached = True
 
-    def rotate_turtle(self, ang):
-        original_ang = 0
-        msg = Twist()
-        msg.linear.x = 0.0
-        msg.linear.y = 0.0
-        msg.linear.z = 0.0
+        if reached:
+            msg.angular.z = pos.theta-self.pos.theta
 
-        msg.angular.x = 0.0
-        msg.angular.y = 0.0
-        msg.angular.z = .5
-
-        time1 = self.get_clock().now().to_msg()
-        cur_angle = self.pos.theta
-        if(cur_angle < 0):
-            cur_angle = 6.28319 + cur_angle
-        original_ang = cur_angle
-        angle = ang
-        self.get_logger().info('"%s"' % angle )  
-        self.get_logger().info('"%s"' % self.pos.theta )  
-
-        if(cur_angle > angle):
-            msg.angular.z = -.5
-            while (cur_angle > angle):
-                self.move_m.publish(msg)
-                time2 = self.get_clock().now().to_msg()
-                cur_angle = msg.angular.z*(time2._sec - time1._sec) + original_ang
-                self.get_logger().info('TIME 1: "%s"' % time1 )  
-                self.get_logger().info('TIME 2: "%s"' % time2 )  
-                self.get_logger().info('CUR_ANGLE: "%s"' % cur_angle )  
-        if(cur_angle < angle):
-            msg.angular.z = .5
-            while (cur_angle < angle):
-                self.move_m.publish(msg)
-                time2 = self.get_clock().now().to_msg()
-                cur_angle = msg.angular.z*(time2._sec - time1._sec) + original_ang
-                self.get_logger().info('TIME 1: "%s"' % time1 )  
-                self.get_logger().info('TIME 2: "%s"' % time2 )  
-                self.get_logger().info('CUR_ANGLE: "%s"' % cur_angle )  
-        
-        msg.angular.z = 0.0
         self.move_m.publish(msg)
-
-
 
 def main(args=None):
     global current_x
@@ -187,25 +135,54 @@ def main(args=None):
     am_turtle = AMTurtle()
     am_turtle.send_background_request()
     am_turtle.transparent_pen_request()
-    
-    x_cords = [4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 2.0, 2.0, 9.0, 9.0, 8.0, 8.0, 6.0, 6.0, 7.0, 7.0, 4.0]
-    y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
+    c = 64.8
+    x_cords_a = [72/c, 140/c, 140/c, 131/c, 138/c, 194/c, 203/c, 192/c, 192/c, 260/c, 260/c, 241/c, 195/c, 203/c, 203/c, 128/c, 128/c, 138/c, 91/c, 72/c, 72/c]
+    y_cords_a = [217/c, 217/c, 252/c, 252/c, 270/c, 270/c, 252/c, 252/c, 217/c, 217/c, 252/c, 252/c, 360/c, 360/c, 395/c, 395/c, 360/c, 360/c, 252/c, 252/c, 217/c]
     angles = [math.pi/2, 0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0, 3*math.pi/2, math.pi]
 
-    for i in range(len(x_cords)):
-        current_x = x_cords[i]
-        current_y = y_cords[i]
+    x_cords_a_inside = [154/c, 179/c,166/c,154/c]
+    y_cords_a_inside = [305/c,305/c,334/c,305/c]
+
+    x_cords_t = [242/c, 404/c, 404/c, 361/c, 361/c, 442/c, 441/c, 518/c, 518/c, 128/c, 128/c, 203/c, 203/c, 285/c, 285/c, 242/c, 242/c]
+    y_cords_t = [117/c, 117/c, 193/c, 193/c, 461/c, 461/c, 418/c, 418/c, 530/c, 530/c, 418/c, 418/c, 461/c, 461/c, 193/c, 193/c, 117/c]
+
+    x_cords_w = [386/c, 450/c, 450/c, 436/c, 436/c, 480/c, 525/c, 525/c, 512/c, 512/c, 575/c, 575/c, 561/c, 561/c, 575/c, 575/c, 518/c, 480/c, 442/c, 387/c, 387/c, 400/c, 400/c, 386/c, 386/c]
+    y_cords_w = [217/c, 217/c, 252/c, 252/c, 326/c, 236/c, 326/c, 252/c, 252/c, 217/c, 217/c, 252/c, 252/c, 360/c, 360/c, 395/c, 395/c, 318/c, 395/c, 395/c, 360/c, 360/c, 252/c, 252/c, 217/c]
+
+    for i in range(len(x_cords_a)):
+        current_x = x_cords_a[i]
+        current_y = y_cords_a[i]
         while reached == False:
             rclpy.spin_once(am_turtle)
         reached = False
         am_turtle.send_pen_request()
-        am_turtle.rotate_turtle(angles[i])
-            
+    
+    am_turtle.transparent_pen_request()
+    for i in range(len(x_cords_a_inside)):
+        current_x = x_cords_a_inside[i]
+        current_y = y_cords_a_inside[i]
+        while reached == False:
+            rclpy.spin_once(am_turtle)
+        reached = False
+        am_turtle.send_pen_request()
 
-    #am_turtle.move_turtle()
+    am_turtle.transparent_pen_request()
+    for i in range(len(x_cords_t)):
+        current_x = x_cords_t[i]
+        current_y = y_cords_t[i]
+        while reached == False:
+            rclpy.spin_once(am_turtle)
+        reached = False
+        am_turtle.send_pen_request()
 
-    # Might need to use while rclpy isok here
-
+    am_turtle.transparent_pen_request()
+    for i in range(len(x_cords_w)):
+        current_x = x_cords_w[i]
+        current_y = y_cords_w[i]
+        while reached == False:
+            rclpy.spin_once(am_turtle)
+        reached = False
+        am_turtle.send_pen_request()
     
     am_turtle.destroy_node()
     rclpy.shutdown()
@@ -213,3 +190,4 @@ def main(args=None):
 # Used to run the script
 if __name__ == '__main__':
     main()
+    
