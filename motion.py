@@ -10,6 +10,7 @@ from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import ParameterType
 from rcl_interfaces.msg import ParameterValue
 from turtlesim.srv import SetPen
+from std_srvs.srv import Empty
 
 import sys
 
@@ -38,20 +39,37 @@ class TurtleGoToGoal(Node):
         while not self.background_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
 
+        # Creates a client that can be used to clear the board
+        self.clear_cli = self.create_client(Empty,'/clear')
+
+        # Handles waiting for the Empty service
+        while not self.clear_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
         self.pen_req = SetPen.Request()
         self.background_req = SetParameters.Request()
+        self.clear_req = Empty.Request()
         
+        # Timer stuff
         timer_period = 0.5
         self.timer = self.create_timer(timer_period, self.move2goal)
         self.pose=Pose()
         self.flag=False
 
+        # Clearing everything
+        self.send_clear_request()
+
+        # Setting the background up
         self.send_background_request()
 
+        # Setting up the coordinates to be used
         self.x_cords = [4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 2.0, 2.0, 9.0, 9.0, 8.0, 8.0, 6.0, 6.0, 7.0, 7.0, 4.0]
         self.y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
-        self.angles = [math.pi/2, 0.0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0.0, 3*math.pi/2, math.pi]
+        self.angles = [math.pi/2, 0.0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2]
     
+    def send_clear_request(self):
+        self.future = self.clear_cli.call_async(self.clear_req)
+
     def send_pen_request(self):
         # Setting up the parameters for the pen color to be white
         self.pen_req.off = 0
@@ -133,16 +151,18 @@ class TurtleGoToGoal(Node):
                     self.flag = True
         if self.flag:
             vel_msg.angular.z=goal_pose.theta-self.pose.theta
-            print("i: " + str(i))
-            if i < len(self.x_cords):
-                i += 1
-            else:
-                quit()
 
             if abs(goal_pose.theta - self.pose.theta) <= angular_tolerance:
                 quit()
             
             self.flag = False
+
+            if i < len(self.x_cords):
+                print("i: " + str(i))
+                i += 1
+            else:
+                print("Here!")
+                self.destroy_node()
         
         self.get_logger().info('"%s"' % "publishing vel message")    
         self.cmdvel_pub.publish(vel_msg)
@@ -152,7 +172,6 @@ def main(args=None):
     node = TurtleGoToGoal()
     rclpy.spin(node)
 
-    node.destroy_node()
     rclpy.shutdown()
 
 if __name__ == "__main__":
