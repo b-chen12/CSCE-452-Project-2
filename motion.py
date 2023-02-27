@@ -5,6 +5,12 @@ from geometry_msgs.msg import Twist
 
 from turtlesim.msg import Pose
 
+from rcl_interfaces.msg import Parameter
+from rcl_interfaces.srv import SetParameters
+from rcl_interfaces.msg import ParameterType
+from rcl_interfaces.msg import ParameterValue
+from turtlesim.srv import SetPen
+
 import sys
 
 import math
@@ -18,15 +24,70 @@ class TurtleGoToGoal(Node):
 
         self.pose_subs = self.create_subscription(Pose,'/turtle1/pose', self.pose_callback, 10)
 
+        # Creates a client that can be used to change the pen
+        self.pen_cli = self.create_client(SetPen,'/turtle1/set_pen')
+
+        # Handles waiting for the SetPen service
+        while not self.pen_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
+        # Creates a client that can be used to change the background color
+        self.background_cli = self.create_client(SetParameters,'/turtlesim/set_parameters')
+        
+        # Handles waiting for the SetParameters service
+        while not self.background_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
+        self.pen_req = SetPen.Request()
+        self.background_req = SetParameters.Request()
+        
         timer_period = 0.5
         self.timer = self.create_timer(timer_period, self.move2goal)
         self.pose=Pose()
         self.flag=False
 
+        self.send_background_request()
+
+        self.x_cords = [4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 2.0, 2.0, 9.0, 9.0, 8.0, 8.0, 6.0, 6.0, 7.0, 7.0, 4.0]
+        self.y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
+        self.angles = [math.pi/2, 0.0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0.0, 3*math.pi/2, math.pi]
+    
+    def send_pen_request(self):
+        # Setting up the parameters for the pen color to be white
+        self.pen_req.off = 0
+        self.pen_req.r = 255
+        self.pen_req.g = 255
+        self.pen_req.b = 255
+        self.pen_req.width = 3 # if we dorclpy.spin_once(am_turtle)n't set this then the pen is really thin
+        
+        # Completing an async call to change the background color
+        self.future = self.pen_cli.call_async(self.pen_req)
+
+    def transparent_pen_request(self):
+        self.pen_req.off = 1
+        self.future = self.pen_cli.call_async(self.pen_req)
+    
+    def send_background_request(self):
+        # Setting up parameters for the maroon background color
+        param_r = ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=80)
+        param_g = ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=0)
+        param_b = ParameterValue(type=ParameterType.PARAMETER_INTEGER, integer_value=0)
+
+        # Setting the parameters in the request
+        self.background_req.parameters = [
+            Parameter(name='background_r', value=param_r),
+            Parameter(name='background_g', value=param_g),
+            Parameter(name='background_b', value=param_b)
+        ]
+
+        # Completing an async call to change the background color
+        self.future = self.background_cli.call_async(self.background_req)
+
     def pose_callback(self, data):
         self.pose.x=data.x
         self.pose.y=data.y
         self.pose.theta=data.theta
+        
     def eucliden_distance(self,goal_pose):
         return math.sqrt(pow((goal_pose.x - self.pose.x), 2) + pow((goal_pose.y - self.pose.y),2))
     
@@ -39,20 +100,22 @@ class TurtleGoToGoal(Node):
         return constant*(self.steering_angle(goal_pose) - self.pose.theta)
     
     def move2goal(self):
-        x_cords = [4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 2.0, 2.0, 9.0, 9.0, 8.0, 8.0, 6.0, 6.0, 7.0, 7.0, 4.0]
-        y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
-        angles = [math.pi/2, 0.0, math.pi/2, math.pi, 3*math.pi/2, math.pi, math.pi/2, 0.0, 3*math.pi/2, math.pi, math.pi/2, math.pi, 3*math.pi/2, 0.0, 3*math.pi/2, math.pi]
         global i
 
         goal_pose = Pose()
-        goal_pose.x = x_cords[i]
-        goal_pose.y = y_cords[i]
-        goal_pose.theta = angles[i]
+        goal_pose.x = self.x_cords[i]
+        goal_pose.y = self.y_cords[i]
+        goal_pose.theta = self.angles[i]
 
         distance_tolerance = 0.1
         angular_tolerance = 0.01
 
         vel_msg = Twist()
+
+        if i == 0:
+            self.transparent_pen_request()
+        else:
+            self.send_pen_request()
 
         if abs(self.steering_angle(goal_pose) - self.pose.theta) > angular_tolerance:
             vel_msg.linear.x = 0.0
@@ -70,7 +133,11 @@ class TurtleGoToGoal(Node):
                     self.flag = True
         if self.flag:
             vel_msg.angular.z=goal_pose.theta-self.pose.theta
-            i += 1
+            print("i: " + str(i))
+            if i < len(self.x_cords):
+                i += 1
+            else:
+                quit()
 
             if abs(goal_pose.theta - self.pose.theta) <= angular_tolerance:
                 quit()
