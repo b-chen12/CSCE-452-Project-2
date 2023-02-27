@@ -49,13 +49,19 @@ class AMTurtle(Node):
 
     def send_pen_request(self):
         # Setting up the parameters for the pen color to be white
+        self.pen_req.off = 0
         self.pen_req.r = 255
         self.pen_req.g = 255
         self.pen_req.b = 255
         self.pen_req.width = 3 # if we don't set this then the pen is really thin
-
+        
         # Completing an async call to change the background color
         self.future = self.pen_cli.call_async(self.pen_req)
+
+    def transparent_pen_request(self):
+        self.pen_req.off = 1
+        self.future = self.pen_cli.call_async(self.pen_req)
+
     
     def send_background_request(self):
         # Setting up parameters for the maroon background color
@@ -179,8 +185,8 @@ def main(args=None):
     rclpy.init(args=args)
 
     am_turtle = AMTurtle()
-    am_turtle.send_pen_request()
     am_turtle.send_background_request()
+    am_turtle.transparent_pen_request()
     
     x_cords = [4.0, 4.0, 5.0, 5.0, 3.0, 3.0, 2.0, 2.0, 9.0, 9.0, 8.0, 8.0, 6.0, 6.0, 7.0, 7.0, 4.0]
     y_cords = [1.0, 2.0, 2.0, 6.0, 6.0, 4.0, 4.0, 8.0, 8.0, 4.0, 4.0, 6.0, 6.0, 2.0, 2.0, 1.0, 1.0]
@@ -192,7 +198,9 @@ def main(args=None):
         while reached == False:
             rclpy.spin_once(am_turtle)
         reached = False
+        am_turtle.send_pen_request()
         am_turtle.rotate_turtle(angles[i])
+            
 
     #am_turtle.move_turtle()
 
@@ -205,4 +213,3 @@ def main(args=None):
 # Used to run the script
 if __name__ == '__main__':
     main()
-    
