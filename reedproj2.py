@@ -5,6 +5,7 @@ from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import ParameterType
 from rcl_interfaces.msg import ParameterValue
 from turtlesim.srv import SetPen
+from std_srvs.srv import Empty
 from turtlesim.msg import Pose
 from geometry_msgs.msg import Twist
 import math
@@ -31,9 +32,17 @@ class AMTurtle(Node):
         # Handles waiting for the SetParameters service
         while not self.background_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
+
+        # Creates a client that can be used to clear the board
+        self.clear_cli = self.create_client(Empty,'/clear')
+
+        # Handles waiting for the Empty service
+        while not self.clear_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
         
         self.pen_req = SetPen.Request()
         self.background_req = SetParameters.Request()
+        self.clear_req = Empty.Request()
 
         self.move_m = self.create_publisher(Twist, '/turtle1/cmd_vel', 10)
         timer_period = .1  # will move every .1 seconds
@@ -42,6 +51,8 @@ class AMTurtle(Node):
         self.get_pos = self.create_subscription(Pose, '/turtle1/pose', self.pos_callback, 10)   
         self.pos = Pose()
 
+    def send_clear_request(self):
+        self.future = self.clear_cli.call_async(self.clear_req)
 
     def send_pen_request(self):
         # Setting up the parameters for the pen color to be white
@@ -92,10 +103,10 @@ class AMTurtle(Node):
         return angle
 
     def angular (self, pos):
-        return 5*(self.angle_between_points(pos) - self.pos.theta)
+        return 8*(self.angle_between_points(pos) - self.pos.theta)
     
     def linear (self, pos):
-        return 4 * self.distance_formula(pos)
+        return 6 * self.distance_formula(pos)
     
     def move_turtle(self):
         global reached
@@ -133,6 +144,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     am_turtle = AMTurtle()
+    am_turtle.send_clear_request()
     am_turtle.send_background_request()
     am_turtle.transparent_pen_request()
     c = 64.8
@@ -184,10 +196,17 @@ def main(args=None):
         reached = False
         am_turtle.send_pen_request()
     
+    am_turtle.transparent_pen_request()
+    current_x = 10.0
+    current_y = 10.0
+    while reached == False:
+        rclpy.spin_once(am_turtle)
+    reached = False
+    am_turtle.send_pen_request()
+    
     am_turtle.destroy_node()
     rclpy.shutdown()
 
 # Used to run the script
 if __name__ == '__main__':
     main()
-    
